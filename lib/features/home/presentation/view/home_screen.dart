@@ -6,13 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_xploverse/features/event/presentation/view/tickets_view/events_dashboard.dart';
-import 'package:flutter_xploverse/features/auth/presentation/view/login.dart';
-import 'package:flutter_xploverse/features/auth/presentation/viewmodel/authentication.dart';
+import 'package:flutter_xploverse/feature2/presentation/view/login.dart';
+import 'package:flutter_xploverse/feature2/presentation/viewmodel/authentication.dart';
 import 'package:flutter_xploverse/features/event/presentation/view/events_management.dart';
 import 'package:flutter_xploverse/features/event/presentation/view/event_screen.dart';
 import 'package:flutter_xploverse/features/home/presentation/view/bottom_view/fade_page_route.dart';
 import 'package:flutter_xploverse/features/home/presentation/view/bottom_view/profile_screen.dart';
-import 'package:flutter_xploverse/features/map/presentation/view/map_screen.dart';
+import 'package:flutter_xploverse/feature2/map/presentation/view/map_screen.dart';
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();

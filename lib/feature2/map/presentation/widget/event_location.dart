@@ -17,10 +17,10 @@ class EventLocation {
 
       for (var doc in querySnapshot.docs) {
         try {
-          double? latitude = doc.data()?['latitude'];
-          double? longitude = doc.data()?['longitude'];
-          String? title = doc.data()?['title'];
-          String? endDateString = doc.data()?['endDate'];
+          double? latitude = doc.data()['latitude'];
+          double? longitude = doc.data()['longitude'];
+          String? title = doc.data()['title'];
+          String? endDateString = doc.data()['endDate'];
 
           if (latitude != null &&
               longitude != null &&

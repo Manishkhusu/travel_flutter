@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_xploverse/feature2/buttomnavigation.dart';
 import 'package:flutter_xploverse/feature2/presentation/view/login.dart';
 import 'package:flutter_xploverse/feature2/presentation/viewmodel/authentication.dart';
-import 'package:flutter_xploverse/feature2/presentation/viewmodel/google_auth.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({Key? key}) : super(key: key);
@@ -11,7 +9,8 @@ class SignupPage extends StatefulWidget {
   _SignupPageState createState() => _SignupPageState();
 }
 
-class _SignupPageState extends State<SignupPage> {
+class _SignupPageState extends State<SignupPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -21,7 +20,33 @@ class _SignupPageState extends State<SignupPage> {
   bool _isLoading = false;
   String _selectedUserType = 'User';
   final AuthServices _auth = AuthServices();
-  final FirebaseServices _googleAuth = FirebaseServices();
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _organizationController.dispose();
+    _phoneController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
 
   void _signUpUser() async {
     if (!_formKey.currentState!.validate()) return;
@@ -46,10 +71,9 @@ class _SignupPageState extends State<SignupPage> {
     });
 
     if (res == "success") {
-      Navigator.pushAndRemoveUntil(
+      Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => LoginPage()),
-        (route) => false,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -61,146 +85,191 @@ class _SignupPageState extends State<SignupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 40),
-                const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40),
-                DropdownButtonFormField<String>(
-                  value: _selectedUserType,
-                  decoration: const InputDecoration(
-                    labelText: 'User Type',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'User', child: Text('User')),
-                    DropdownMenuItem(
-                        value: 'Organizer', child: Text('Organizer')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedUserType = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter a username' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter your email' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) => (value!.length < 6)
-                      ? 'Password must be at least 6 characters'
-                      : null,
-                ),
-                if (_selectedUserType == 'Organizer') ...[
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _organizationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Organization Name',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) => (value!.isEmpty)
-                        ? 'Please enter organization name'
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) =>
-                        (value!.isEmpty) ? 'Please enter phone number' : null,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _signUpUser,
-                  child: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('Sign Up'),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () async {
-                          String res = await _googleAuth
-                              .signInWithGoogle(_selectedUserType);
-                          if (res == "success") {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => LoginPage()),
-                              (route) => false,
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(res)),
-                            );
-                          }
-                        },
-                  icon: Image.asset('assets/google_logo.png', height: 24),
-                  label: const Text('Sign up with Google'),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Already have an account?'),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginPage(),
+      backgroundColor: const Color(0xFFE1F5FE), // Light Blue Background
+      body: FadeTransition(
+        opacity: _animation,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: Offset(0, 0.2), end: Offset.zero)
+              .animate(_animation),
+          child: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0), // Increased padding
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Create Account',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF29ABE2), // Sky Blue Color
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 48),
+                      DropdownButtonFormField<String>(
+                        value: _selectedUserType,
+                        decoration: InputDecoration(
+                          labelText: 'User Type',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
-                        );
-                      },
-                      child: const Text('Login'),
-                    ),
-                  ],
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'User', child: Text('User')),
+                          DropdownMenuItem(
+                              value: 'Organizer', child: Text('Organizer')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedUserType = value!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _usernameController,
+                        style: const TextStyle(color: Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        validator: (value) =>
+                            value!.isEmpty ? 'Please enter a username' : null,
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _emailController,
+                        style: const TextStyle(color: Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        validator: (value) =>
+                            value!.isEmpty ? 'Please enter your email' : null,
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _passwordController,
+                        style: const TextStyle(color: Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        obscureText: true,
+                        validator: (value) => (value!.length < 6)
+                            ? 'Password must be at least 6 characters'
+                            : null,
+                      ),
+                      if (_selectedUserType == 'Organizer') ...[
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _organizationController,
+                          style: const TextStyle(color: Colors.black87),
+                          decoration: InputDecoration(
+                            labelText: 'Organization Name',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          validator: (value) => (value!.isEmpty)
+                              ? 'Please enter organization name'
+                              : null,
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _phoneController,
+                          style: const TextStyle(color: Colors.black87),
+                          decoration: InputDecoration(
+                            labelText: 'Phone Number',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          validator: (value) => (value!.isEmpty)
+                              ? 'Please enter phone number'
+                              : null,
+                        ),
+                      ],
+                      const SizedBox(height: 32),
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _signUpUser,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor:
+                              const Color(0xFFF2D794), // Sand Beige Color
+                          foregroundColor: Colors.black,
+                          textStyle: const TextStyle(fontSize: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.black),
+                                ),
+                              )
+                            : const Text('Sign Up'),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Already have an account?",
+                              style: TextStyle(color: Colors.black54)),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginPage(),
+                                ),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF29ABE2),
+                            ),
+                            child: const Text('Login'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
         ),

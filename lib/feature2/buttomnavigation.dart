@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_xploverse/feature2/favourite_page.dart';
 import 'package:flutter_xploverse/feature2/landingpage.dart';
+import 'package:flutter_xploverse/feature2/languagetranslator/translatorpg.dart';
 import 'package:flutter_xploverse/feature2/map/presentation/view/map_screen.dart';
 import 'package:flutter_xploverse/feature2/profile_page.dart';
+// Import TranslationPage
 
 class MainNavigationPage extends StatefulWidget {
+  const MainNavigationPage({Key? key}) : super(key: key);
+
   @override
-  _MainNavigationPageState createState() => _MainNavigationPageState();
+  State<MainNavigationPage> createState() => _MainNavigationPageState();
 }
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
@@ -16,6 +20,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     LandingPage(),
     FavoritesPage(),
     MapPage(),
+    Translatorpg(), // Add TranslationPage
     ProfilePage(),
   ];
 
@@ -24,7 +29,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           boxShadow: [
             BoxShadow(
               color: Colors.black26,
@@ -42,7 +47,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
           backgroundColor: Colors.black,
           selectedItemColor: Colors.yellow[700],
           unselectedItemColor: Colors.grey,
-          items: [
+          type: BottomNavigationBarType.fixed, //Add this
+          items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.explore),
               label: 'Explore',
@@ -54,6 +60,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             BottomNavigationBarItem(
               icon: Icon(Icons.map),
               label: 'Map',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.translate), // Add Translation
+              label: 'Translate',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person),

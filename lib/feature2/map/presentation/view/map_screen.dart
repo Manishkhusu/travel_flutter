@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
@@ -34,6 +35,7 @@ class _MapPageState extends ConsumerState<MapPage> {
   LatLng? _selectedEventLatLng;
   bool _showSearchPopup = false;
   List<String> _searchResults = []; // List to store search results
+  bool _isRouteCompleted = false; // State to track route completion
 
   bool _isMounted = false;
   StreamSubscription<void>? _eventSubscription;
@@ -48,6 +50,8 @@ class _MapPageState extends ConsumerState<MapPage> {
   Map<LatLng, String> eventNames =
       {}; // Map to store event names by their location
   List<Map<String, dynamic>> nearbyEvents = []; //For List of nearby events
+
+  final FlutterTts flutterTts = FlutterTts();
 
   final Map<String, TileLayer> layers = {
     'Default': TileLayer(
@@ -89,14 +93,34 @@ class _MapPageState extends ConsumerState<MapPage> {
           _routePoints = coordinates
               .map((coord) => LatLng(coord[1].toDouble(), coord[0].toDouble()))
               .toList();
-          _showCancelRouteButton = true; // Show the cancel route button
+          _showCancelRouteButton = true;
+          _isRouteCompleted = false; // Reset on new route
         });
+        await _announceRoute(
+            _routePoints); // Announce the route with step-by-step directions
       } else {
         print('Failed to fetch route: ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching route: $e');
     }
+  }
+
+  Future<void> _announceRoute(List<LatLng> routePoints) async {
+    await flutterTts.setLanguage('en-US'); // Setting English language
+    await flutterTts.setPitch(1.0);
+    await flutterTts.setSpeechRate(0.5);
+    //Announce the route with step-by-step directions
+    for (int i = 0; i < routePoints.length; i++) {
+      final latLng = routePoints[i];
+      String step =
+          'In ${i + 1} turn to latitude ${latLng.latitude.toStringAsFixed(2)} and longitude ${latLng.longitude.toStringAsFixed(2)}';
+      await flutterTts.speak(step);
+    }
+  }
+
+  Future<void> _speakThankYou() async {
+    await flutterTts.speak('Thank you for using our route!');
   }
 
   void _recalculateRoute() {
@@ -225,7 +249,30 @@ class _MapPageState extends ConsumerState<MapPage> {
           _calculateNearbyEvents();
         });
       }
+
+      if (_routePoints.isNotEmpty &&
+          userLocation != null &&
+          _isNearDestination(userLocation!, _routePoints.last)) {
+        if (!_isRouteCompleted) {
+          _speakThankYou(); // Say thank you only once
+          setState(() {
+            _isRouteCompleted = true; // Mark the route as completed
+          });
+        }
+      }
     });
+  }
+
+  bool _isNearDestination(LatLng currentLocation, LatLng destination) {
+    const double proximityThreshold = 0.01; // Adjust this threshold as needed
+    final double distance = Geolocator.distanceBetween(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+
+    return distance < proximityThreshold; // Return the result
   }
 
   // Method to calculate distance between user and event
@@ -281,6 +328,7 @@ class _MapPageState extends ConsumerState<MapPage> {
       _routePoints.clear();
       _showCancelRouteButton = false; // Hide the cancel route button
       _selectedEventLatLng = null; // Clear the selected event
+      _isRouteCompleted = false;
     });
   }
 
@@ -744,6 +792,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                   onTap: () {
                     setState(() {
                       _showSearchPopup = false;
+                      _searchResults.clear();
                     });
                   },
                   child: Container(

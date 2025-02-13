@@ -1,27 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_xploverse/feature2/firestores.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ReviewSection extends StatefulWidget {
   final String tripId;
+  final Color backgroundColor;
+  final Color textColor;
 
-  const ReviewSection({Key? key, required this.tripId}) : super(key: key);
+  const ReviewSection({
+    Key? key,
+    required this.tripId,
+    this.backgroundColor = Colors.grey,
+    this.textColor = Colors.white,
+  }) : super(key: key);
 
   @override
   _ReviewSectionState createState() => _ReviewSectionState();
 }
 
 class _ReviewSectionState extends State<ReviewSection> {
-  final FirestoreServices _firestoreServices = FirestoreServices();
-  final TextEditingController _reviewController = TextEditingController();
+  final _auth = FirebaseAuth.instance;
+  final _reviewController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   int _selectedRating = 0;
-  bool _isLoading = false; // Add loading indicator
+  bool _isLoading = false;
+
+  String? _existingReviewId; // To store the existing review ID
+  DocumentSnapshot? _existingReviewData;
 
   @override
   void initState() {
     super.initState();
-    print("ReviewSection: tripId = ${widget.tripId}");
+    _loadExistingReview(); // Load any existing review for this user & trip
   }
 
   @override
@@ -29,6 +39,28 @@ class _ReviewSectionState extends State<ReviewSection> {
     _reviewController.dispose();
     _nameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadExistingReview() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final reviewDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('reviews')
+        .doc(widget.tripId)
+        .get();
+
+    if (reviewDoc.exists) {
+      setState(() {
+        _existingReviewId = reviewDoc.id;
+        _existingReviewData = reviewDoc;
+        _nameController.text = reviewDoc['userName'] ?? '';
+        _reviewController.text = reviewDoc['review'] ?? '';
+        _selectedRating = reviewDoc['rating'] as int? ?? 0;
+      });
+    }
   }
 
   Future<void> _submitReview() async {
@@ -46,27 +78,87 @@ class _ReviewSectionState extends State<ReviewSection> {
       _isLoading = true;
     });
 
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final reviewData = {
+      'review': _reviewController.text,
+      'rating': _selectedRating,
+      'userName': _nameController.text,
+      'tripId': widget.tripId,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
     try {
-      await _firestoreServices.addReview(
-        review: _reviewController.text,
-        rating: _selectedRating,
-        userName: _nameController.text,
-        tripId: widget.tripId,
-        reviewText: _reviewController
-            .text, // Or whatever you want to pass as reviewText
-      );
+      final userReviewsCollection = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reviews');
+
+      if (_existingReviewId != null) {
+        // Update existing review
+        await userReviewsCollection.doc(widget.tripId).update(reviewData);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Review updated successfully!')),
+        );
+      } else {
+        // Add new review
+        await userReviewsCollection.doc(widget.tripId).set(reviewData);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Review submitted successfully!')),
+        );
+      }
+
       _reviewController.clear();
       _nameController.clear();
       setState(() {
         _selectedRating = 0;
+        _existingReviewId = widget.tripId; // Update ID
+        _loadExistingReview();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review submitted successfully!')),
-      );
     } catch (e) {
-      print("Error submitting review: $e");
+      print("Error submitting/updating review: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error submitting review: ${e.toString()}')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteReview() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userReviewsCollection = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reviews');
+
+      await userReviewsCollection.doc(widget.tripId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review deleted successfully!')),
+      );
+
+      _reviewController.clear();
+      _nameController.clear();
+      setState(() {
+        _selectedRating = 0;
+        _existingReviewId = null;
+        _isLoading = false;
+        _loadExistingReview();
+      });
+    } catch (e) {
+      print("Error deleting review: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting review: ${e.toString()}')),
       );
     } finally {
       setState(() {
@@ -84,7 +176,7 @@ class _ReviewSectionState extends State<ReviewSection> {
           margin: const EdgeInsets.symmetric(vertical: 16),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey[900],
+            color: widget.backgroundColor,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -141,25 +233,59 @@ class _ReviewSectionState extends State<ReviewSection> {
                 style: const TextStyle(color: Colors.white),
               ),
               const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed:
-                    _isLoading ? null : _submitReview, // Disable during loading
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.yellow[700],
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : _submitReview, // Disable during loading
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.yellow[700],
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          )) // Show loading indicator
+                      : Text(
+                          _existingReviewId == null
+                              ? 'Submit Review'
+                              : 'Update Review',
+                          style: const TextStyle(color: Colors.black),
+                        ),
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator() // Show loading indicator
-                    : const Text(
-                        'Submit Review',
-                        style: TextStyle(color: Colors.black),
-                      ),
-              ),
+                if (_existingReviewId != null)
+                  Padding(
+                      padding: EdgeInsets.only(left: 10),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _deleteReview,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                )) // Show loading indicator
+                            : const Text(
+                                'Delete Review',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                      ))
+              ]),
             ],
           ),
         ),
         // Existing Reviews Section
         StreamBuilder<QuerySnapshot>(
-          stream: _firestoreServices.getReviewsStream(widget.tripId),
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(_auth.currentUser?.uid) // Fetch the current user
+              .collection('reviews')
+              .snapshots(), // Now for loading the data, you must first specify and filter
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Center(

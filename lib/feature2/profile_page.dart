@@ -8,7 +8,7 @@ import 'package:flutter_xploverse/feature2/favourite_page.dart';
 import 'package:flutter_xploverse/feature2/presentation/view/login.dart';
 import 'package:flutter_xploverse/feature2/presentation/viewmodel/authentication.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:rxdart/rxdart.dart'; // Import FavoritesPage
+import 'package:rxdart/rxdart.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -32,12 +32,12 @@ class _ProfilePageState extends State<ProfilePage> {
   int totalBookings = 0;
   int totalEvents = 0;
   int createdEvents = 0;
-  int totalFavorites = 0; // Add this
+  int totalFavorites = 0;
 
   final _bookingStream = BehaviorSubject<int>();
   final _createdEventStream = BehaviorSubject<int>();
   final _bookedEventStream = BehaviorSubject<int>();
-  final _favoriteStream = BehaviorSubject<int>(); // Add this
+  final _favoriteStream = BehaviorSubject<int>();
 
   @override
   void initState() {
@@ -50,7 +50,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _bookingStream.close();
     _createdEventStream.close();
     _bookedEventStream.close();
-    _favoriteStream.close(); // Add this
+    _favoriteStream.close();
     super.dispose();
   }
 
@@ -81,7 +81,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     fetchBookingInfo();
     fetchCreatedEvents();
-    fetchTotalFavorites(); // Add this
+    fetchTotalFavorites();
   }
 
   Future<void> fetchBookingInfo() async {
@@ -119,7 +119,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> fetchTotalFavorites() async {
-    // Add this function
     try {
       FirebaseFirestore.instance
           .collection('users')
@@ -201,10 +200,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final textColor = Colors.white;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: const Color(0xFFE1F5FE),
       appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: backgroundColor,
+        title: const Text('Profile', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF29ABE2),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -229,11 +228,15 @@ class _ProfilePageState extends State<ProfilePage> {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+                child: Text('Error: ${snapshot.error}',
+                    style: TextStyle(color: Colors.black54)));
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('No user data found'));
+            return const Center(
+                child: Text('No user data found',
+                    style: TextStyle(color: Colors.black54)));
           }
 
           var userData = snapshot.data!.data() as Map<String, dynamic>;
@@ -294,7 +297,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: textColor,
+                    color: const Color(0xFF29ABE2),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -313,20 +316,37 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       _buildInfoText('Email', userData['email'] ?? ''),
                       _buildInfoText('Bio', userData['bio'] ?? ''),
-                      // Remove the original bookings Row
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Your Interests:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.black,
+                        ),
+                      ),
+                      Wrap(
+                        children: (userData['hashtags'] as List<dynamic>?)
+                                ?.map((hashtag) => Chip(
+                                      label: Text(
+                                        hashtag,
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                    ))
+                                .toList() ??
+                            [],
+                      ),
                       const SizedBox(height: 20),
                       GestureDetector(
-                        // Wrap with GestureDetector
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (context) =>
-                                    FavoritesPage()), // Navigate to FavoritesPage
+                                builder: (context) => FavoritesPage()),
                           );
                         },
                         child: Container(
-                          // Style like the original containers
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             border: Border.all(
@@ -439,11 +459,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     _showUpdateProfileDialog(userData);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: const Color(0xFFF2D794),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    foregroundColor: Colors.black,
+                    textStyle: const TextStyle(fontSize: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: const Text(
                     'Update Profile',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
+                    style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -458,6 +484,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(fontSize: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: const Text('Logout'),
                 ),
@@ -471,7 +503,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildInfoCard({required String title, required Widget content}) {
     return Card(
-      color: Colors.grey[900],
+      color: Colors.white,
+      elevation: 4,
+      margin: const EdgeInsets.all(10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -482,7 +519,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Colors.black,
               ),
             ),
             const SizedBox(height: 10),
@@ -501,7 +538,7 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white70),
+            style: const TextStyle(color: Colors.black54),
           ),
           Text(
             value,
@@ -523,7 +560,7 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white70),
+            style: const TextStyle(color: Colors.black54),
           ),
           Icon(
             value ? Icons.check_circle : Icons.cancel,
@@ -543,14 +580,14 @@ class _ProfilePageState extends State<ProfilePage> {
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: Colors.white,
+            color: Colors.black,
           ),
         ),
         Text(
           value,
           style: const TextStyle(
             fontSize: 16,
-            color: Colors.white70,
+            color: Colors.black54,
           ),
         ),
       ],
@@ -559,12 +596,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _showUpdateProfileDialog(Map<String, dynamic> userData) {
     bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    String newHashtags =
+        (userData['hashtags'] as List<dynamic>?)?.join(' ') ?? '';
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         String newBio = userData['bio'] ?? '';
         String newPhone = userData['phone'] ?? '';
+
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding:
@@ -629,6 +669,33 @@ class _ProfilePageState extends State<ProfilePage> {
                     maxLines: 5,
                   ),
                   const SizedBox(height: 16),
+                  TextField(
+                    onChanged: (value) {
+                      newHashtags = value;
+                    },
+                    controller: TextEditingController(text: newHashtags),
+                    decoration: InputDecoration(
+                      hintText: 'Enter your interests (space-separated)',
+                      hintStyle: TextStyle(
+                        color: isDarkMode ? Colors.white70 : Colors.black54,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: isDarkMode ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: isDarkMode ? Colors.white : Colors.black,
+                        ),
+                      ),
+                    ),
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black,
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
                   if (userData['usertype'] == 'Organizer')
                     TextField(
                       onChanged: (value) {
@@ -679,9 +746,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         onPressed: () {
-                          // Update the user document with the new values
                           allUsers.doc(user?.uid).update({
                             'bio': newBio,
+                            'hashtags': newHashtags.split(' '),
                             if (userData['usertype'] == 'Organizer')
                               'phone': newPhone,
                           }).then((_) {

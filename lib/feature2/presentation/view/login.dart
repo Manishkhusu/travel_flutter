@@ -44,31 +44,95 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
+  void _showErrorDialog(String title, String message,
+      {bool isSuccess = false}) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: Colors.white,
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF29ABE2),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(color: Colors.black87),
+          ),
+          actions: isSuccess
+              ? [] // No button for success
+              : [
+                  TextButton(
+                    // The OK button for errors
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF29ABE2),
+                    ),
+                    child: const Text('OK'),
+                  ),
+                ],
+        );
+      },
+    );
+  }
+
   void _loginUser() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
-    String res = await _auth.loginUser(
-      email: _emailController.text,
-      password: _passwordController.text,
-    );
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (res == "success") {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => MainNavigationPage()),
-        (route) => false,
+    try {
+      String res = await _auth.loginUser(
+        email: _emailController.text,
+        password: _passwordController.text,
       );
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res)),
+
+      if (res == "success") {
+        _showErrorDialog('Login Successful', 'You have successfully logged in.',
+            isSuccess: true); // Indicate success
+        Future.delayed(const Duration(seconds: 2), () {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => MainNavigationPage()),
+            (route) => false,
+          );
+        });
+      } else if (res.contains("user-not-found")) {
+        _showErrorDialog(
+          'Account Not Found',
+          'No account exists with this email address. Please check your email or create a new account.',
         );
+      } else if (res.contains("wrong-password")) {
+        _showErrorDialog(
+          'Incorrect Password',
+          'The password you entered is incorrect. Please try again or use the "Forgot Password" option.',
+        );
+      } else {
+        _showErrorDialog(
+          'Login Error',
+          'An error occurred while trying to log in. Please try again.',
+        );
+      }
+    } catch (e) {
+      _showErrorDialog(
+        'Connection Error',
+        'Unable to connect to the server. Please check your internet connection and try again.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -76,17 +140,16 @@ class _LoginPageState extends State<LoginPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE1F5FE), // Light Blue Background
+      backgroundColor: const Color(0xFFE1F5FE),
       body: FadeTransition(
         opacity: _animation,
         child: SlideTransition(
-          position: Tween<Offset>(begin: Offset(0, 0.2), end: Offset.zero)
+          position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
               .animate(_animation),
           child: SafeArea(
             child: Center(
-              // Center the form vertically and horizontally
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0), // Increased padding
+                padding: const EdgeInsets.all(24.0),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -96,22 +159,20 @@ class _LoginPageState extends State<LoginPage>
                       const Text(
                         'Welcome To Travel',
                         style: TextStyle(
-                          fontSize: 32, // Larger font size
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF29ABE2), // Sky Blue color
+                          color: Color(0xFF29ABE2),
                         ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 48),
                       TextFormField(
                         controller: _emailController,
-                        style: const TextStyle(
-                            color: Colors.black87), // Black or dark text color
+                        style: const TextStyle(color: Colors.black87),
                         decoration: InputDecoration(
                           labelText: 'Email',
                           border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(12), // Rounded corners
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
                           filled: true,
@@ -133,8 +194,7 @@ class _LoginPageState extends State<LoginPage>
                       const SizedBox(height: 20),
                       TextFormField(
                         controller: _passwordController,
-                        style: const TextStyle(
-                            color: Colors.black87), // Black or dark text color
+                        style: const TextStyle(color: Colors.black87),
                         decoration: InputDecoration(
                           labelText: 'Password',
                           border: OutlineInputBorder(
@@ -184,8 +244,7 @@ class _LoginPageState extends State<LoginPage>
                               },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor:
-                              const Color(0xFFF2D794), // Sand Beige
+                          backgroundColor: const Color(0xFFF2D794),
                           foregroundColor: Colors.black,
                           textStyle: const TextStyle(fontSize: 18),
                           shape: RoundedRectangleBorder(
@@ -212,7 +271,7 @@ class _LoginPageState extends State<LoginPage>
                               style: TextStyle(color: Colors.black54)),
                           TextButton(
                             onPressed: () {
-                              Navigator.push(
+                              Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => const SignupPage(),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_xploverse/feature2/reviewedit.dart'; // Import the EditReviewDialog
+//Make sure you added the imports to tripexpense to help avoid errors
 
 class ReviewSection extends StatefulWidget {
   final String tripId;
@@ -24,14 +26,13 @@ class _ReviewSectionState extends State<ReviewSection> {
   final TextEditingController _nameController = TextEditingController();
   int _selectedRating = 0;
   bool _isLoading = false;
-
-  String? _existingReviewId; // To store the existing review ID
-  DocumentSnapshot? _existingReviewData;
+  bool _hasReviewed = false; // Track if the user has already reviewed
+  String? _existingReviewId; // Track the ID of the existing review
 
   @override
   void initState() {
     super.initState();
-    _loadExistingReview(); // Load any existing review for this user & trip
+    _checkIfUserHasReviewed();
   }
 
   @override
@@ -41,24 +42,23 @@ class _ReviewSectionState extends State<ReviewSection> {
     super.dispose();
   }
 
-  Future<void> _loadExistingReview() async {
+  Future<void> _checkIfUserHasReviewed() async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user != null) {
+      final reviewDocRef = FirebaseFirestore.instance
+          .collection('reviews')
+          .doc(widget.tripId)
+          .collection('userReviews')
+          .doc(user.uid);
 
-    final reviewDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('reviews')
-        .doc(widget.tripId)
-        .get();
-
-    if (reviewDoc.exists) {
+      final reviewDoc = await reviewDocRef.get();
       setState(() {
-        _existingReviewId = reviewDoc.id;
-        _existingReviewData = reviewDoc;
-        _nameController.text = reviewDoc['userName'] ?? '';
-        _reviewController.text = reviewDoc['review'] ?? '';
-        _selectedRating = reviewDoc['rating'] as int? ?? 0;
+        _hasReviewed = reviewDoc.exists;
+        if (reviewDoc.exists) {
+          _existingReviewId = reviewDoc.id;
+        } else {
+          _existingReviewId = null;
+        }
       });
     }
   }
@@ -79,45 +79,63 @@ class _ReviewSectionState extends State<ReviewSection> {
     });
 
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('You must be logged in to submit a review')),
+      );
+      return;
+    }
 
-    final reviewData = {
+    final String? profileImageUrl = user.photoURL;
+
+    // Check if the user already has a review for this trip (check if _hasReviewed is true)
+    if (_hasReviewed) {
+      // User has already reviewed this trip
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have already reviewed this trip.')),
+      );
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final reviewData = <String, dynamic>{
       'review': _reviewController.text,
       'rating': _selectedRating,
       'userName': _nameController.text,
       'tripId': widget.tripId,
       'createdAt': FieldValue.serverTimestamp(),
+      'profileImageUrl': profileImageUrl,
     };
 
     try {
-      final userReviewsCollection = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('reviews');
+      final reviewDocRef = FirebaseFirestore.instance
+          .collection('reviews')
+          .doc(widget.tripId)
+          .collection('userReviews')
+          .doc(user.uid);
 
-      if (_existingReviewId != null) {
-        // Update existing review
-        await userReviewsCollection.doc(widget.tripId).update(reviewData);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Review updated successfully!')),
-        );
-      } else {
-        // Add new review
-        await userReviewsCollection.doc(widget.tripId).set(reviewData);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Review submitted successfully!')),
-        );
-      }
+      await reviewDocRef.set(reviewData);
 
       _reviewController.clear();
       _nameController.clear();
       setState(() {
         _selectedRating = 0;
-        _existingReviewId = widget.tripId; // Update ID
-        _loadExistingReview();
+        _hasReviewed =
+            true; // Set _hasReviewed to true after successful submission
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Profile updated successfully'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
     } catch (e) {
-      print("Error submitting/updating review: $e");
+      print("Error submitting review: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error submitting review: ${e.toString()}')),
       );
@@ -125,36 +143,43 @@ class _ReviewSectionState extends State<ReviewSection> {
       setState(() {
         _isLoading = false;
       });
+      _updateAverageRating();
     }
   }
 
   Future<void> _deleteReview() async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('You must be logged in to delete a review')),
+      );
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final userReviewsCollection = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('reviews');
+      final reviewDocRef = FirebaseFirestore.instance
+          .collection('reviews')
+          .doc(widget.tripId)
+          .collection('userReviews')
+          .doc(user.uid);
 
-      await userReviewsCollection.doc(widget.tripId).delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review deleted successfully!')),
-      );
+      await reviewDocRef.delete();
 
       _reviewController.clear();
       _nameController.clear();
       setState(() {
         _selectedRating = 0;
-        _existingReviewId = null;
-        _isLoading = false;
-        _loadExistingReview();
+        _hasReviewed = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review deleted successfully!')),
+      );
     } catch (e) {
       print("Error deleting review: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -164,200 +189,294 @@ class _ReviewSectionState extends State<ReviewSection> {
       setState(() {
         _isLoading = false;
       });
+      _updateAverageRating();
+    }
+  }
+
+  Future<void> _updateAverageRating() async {
+    try {
+      final reviewsSnapshot = await FirebaseFirestore.instance
+          .collection('reviews')
+          .doc(widget.tripId)
+          .collection('userReviews')
+          .get();
+
+      if (reviewsSnapshot.docs.isEmpty) {
+        await FirebaseFirestore.instance
+            .collection('trips')
+            .doc(widget.tripId)
+            .update({'rating': 0.0});
+        return;
+      }
+
+      double totalRating = 0;
+      for (QueryDocumentSnapshot reviewDoc in reviewsSnapshot.docs) {
+        final reviewData = reviewDoc.data() as Map<String, dynamic>;
+        totalRating += (reviewData['rating'] as num).toDouble();
+      }
+
+      final double averageRating = totalRating / reviewsSnapshot.docs.length;
+
+      await FirebaseFirestore.instance
+          .collection('trips')
+          .doc(widget.tripId)
+          .update({'rating': averageRating});
+    } catch (e) {
+      print("Error updating average rating: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Review Input Section
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 16),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: widget.backgroundColor,
+    return Theme(
+      data: ThemeData(
+        brightness: Brightness.light,
+        primaryColor: Colors.blue,
+        hintColor: Colors.grey[600],
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: Colors.black87),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Write a Review',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  hintText: 'Your Name',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  border: const OutlineInputBorder(),
-                  fillColor: Colors.grey[800],
-                  filled: true,
-                ),
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: List.generate(
-                  5,
-                  (index) => IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedRating = index + 1;
-                      });
-                    },
-                    icon: Icon(
-                      index < _selectedRating ? Icons.star : Icons.star_border,
-                      color: Colors.yellow[700],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _reviewController,
-                decoration: InputDecoration(
-                  hintText: 'Share your experience...',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  border: const OutlineInputBorder(),
-                  fillColor: Colors.grey[800],
-                  filled: true,
-                ),
-                maxLines: 3,
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 10),
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                ElevatedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : _submitReview, // Disable during loading
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.yellow[700],
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                          )) // Show loading indicator
-                      : Text(
-                          _existingReviewId == null
-                              ? 'Submit Review'
-                              : 'Update Review',
-                          style: const TextStyle(color: Colors.black),
-                        ),
-                ),
-                if (_existingReviewId != null)
-                  Padding(
-                      padding: EdgeInsets.only(left: 10),
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _deleteReview,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                )) // Show loading indicator
-                            : const Text(
-                                'Delete Review',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                      ))
-              ]),
-            ],
+          filled: true,
+          fillColor: Colors.grey[200],
+          hintStyle: TextStyle(color: Colors.grey[600]),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            textStyle: const TextStyle(fontWeight: FontWeight.bold),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
-        // Existing Reviews Section
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(_auth.currentUser?.uid) // Fetch the current user
-              .collection('reviews')
-              .snapshots(), // Now for loading the data, you must first specify and filter
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                  child: Text('Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red)));
-            }
-
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(
-                  child: Text('No reviews yet',
-                      style: TextStyle(color: Colors.white70)));
-            }
-
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: snapshot.data!.docs.length,
-              itemBuilder: (context, index) {
-                var doc = snapshot.data!.docs[index];
-                Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            data['userName'] ?? 'Anonymous',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+      ),
+      child: Column(
+        children: [
+          // Review Input Section
+          if (!_hasReviewed)
+            Card(
+              margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Write a Review',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge!
+                          .copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        hintText: 'Your Name',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: List.generate(
+                        5,
+                        (index) => IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedRating = index + 1;
+                            });
+                          },
+                          icon: Icon(
+                            index < _selectedRating
+                                ? Icons.star
+                                : Icons.star_border,
+                            color: Colors.amber,
                           ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _reviewController,
+                      decoration: const InputDecoration(
+                        hintText: 'Share your experience...',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _isLoading ? null : _submitReview,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white))
+                              : const Text('Submit Review'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Thank you for your review!',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+
+          // Existing Reviews Section
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('reviews')
+                .doc(widget.tripId)
+                .collection('userReviews')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                    child: Text('Error: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red)));
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(
+                    child: Text('No reviews yet',
+                        style: TextStyle(color: Colors.grey)));
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  final reviewDoc = snapshot.data!.docs[index];
+                  final reviewData = reviewDoc.data() as Map<String, dynamic>;
+                  final String? profileImageUrl =
+                      reviewData['profileImageUrl'] as String?;
+                  final int rating =
+                      (reviewData['rating'] as num?)?.toInt() ?? 0;
+
+                  // Only show edit/delete buttons for the current user's review
+                  final bool isCurrentUserReview =
+                      _auth.currentUser?.uid == reviewDoc.id; // Compare IDs
+
+                  return Card(
+                    margin:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundImage: profileImageUrl != null
+                                        ? NetworkImage(profileImageUrl)
+                                        : null,
+                                    child: profileImageUrl == null
+                                        ? const Icon(Icons.person)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    reviewData['userName'] as String? ??
+                                        'Anonymous',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (isCurrentUserReview) // Conditionally show buttons
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit,
+                                          color: Colors.blue),
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => EditReviewDialog(
+                                              tripId: widget.tripId,
+                                              reviewData:
+                                                  reviewData), // Pass the tripId and reviewData
+                                        );
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete,
+                                          color: Colors.red),
+                                      onPressed: () {
+                                        _deleteReview();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Display the rating stars
                           Row(
                             children: List.generate(
                               5,
                               (starIndex) => Icon(
-                                starIndex < (data['rating'] as int? ?? 0)
+                                starIndex < rating
                                     ? Icons.star
                                     : Icons.star_border,
-                                size: 16,
-                                color: Colors.yellow[700],
+                                color: Colors.amber,
+                                size: 18,
                               ),
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          // Display review text
+                          Text(
+                            reviewData['review'] as String? ?? 'No review text',
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        data['review'] ?? 'No review text',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

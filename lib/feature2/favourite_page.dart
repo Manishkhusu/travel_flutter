@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_xploverse/feature2/trip_detail_page.dart'; // Import TripDetailPage
+import 'package:flutter_xploverse/feature2/trips/trip_detail_page.dart';
+import 'dart:io'; // Import dart:io for File
+
+// Import TripDetailPage
 
 class FavoritesPage extends StatelessWidget {
   @override
@@ -68,6 +71,7 @@ class FavoritesPage extends StatelessWidget {
                         as Map<String, dynamic>;
                     String tripId =
                         snapshot.data!.docs[index].id; // Get the document ID
+                    String? imagePath = tripData['image'];
                     return Dismissible(
                       key: Key(tripData['title']),
                       direction: DismissDirection.endToStart,
@@ -136,8 +140,14 @@ class FavoritesPage extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(8),
                                     image: DecorationImage(
-                                      image: NetworkImage(tripData['image'] ??
-                                          ''), // Handle possible null image
+                                      // Use FileImage if it's a local path, NetworkImage otherwise
+                                      image: imagePath != null
+                                          ? File(imagePath).existsSync()
+                                              ? FileImage(File(imagePath))
+                                                  as ImageProvider
+                                              : NetworkImage(imagePath)
+                                          : const NetworkImage(
+                                              'https://via.placeholder.com/150'), // Provide a default image
                                       fit: BoxFit.cover,
                                     ),
                                   ),

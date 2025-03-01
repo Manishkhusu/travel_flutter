@@ -15,10 +15,7 @@ class _SignupPageState extends State<SignupPage>
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _organizationController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
   bool _isLoading = false;
-  String _selectedUserType = 'User';
   final AuthServices _auth = AuthServices();
   late AnimationController _animationController;
   late Animation<double> _animation;
@@ -42,10 +39,34 @@ class _SignupPageState extends State<SignupPage>
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _organizationController.dispose();
-    _phoneController.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: Colors.white,
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF29ABE2),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(color: Colors.black87),
+          ),
+          actions: [], // REMOVED THE OK BUTTON
+        );
+      },
+    );
   }
 
   void _signUpUser() async {
@@ -59,11 +80,7 @@ class _SignupPageState extends State<SignupPage>
       username: _usernameController.text,
       email: _emailController.text,
       password: _passwordController.text,
-      usertype: _selectedUserType,
-      organization: _selectedUserType == 'Organizer'
-          ? _organizationController.text
-          : null,
-      phone: _selectedUserType == 'Organizer' ? _phoneController.text : null,
+      usertype: '',
     );
 
     setState(() {
@@ -71,14 +88,15 @@ class _SignupPageState extends State<SignupPage>
     });
 
     if (res == "success") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
+      _showErrorDialog('Signup Successful', 'Your account has been created.');
+      Future.delayed(const Duration(seconds: 2), () {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
+      });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res)),
-      );
+      _showErrorDialog('Signup Failed', res);
     }
   }
 
@@ -89,7 +107,7 @@ class _SignupPageState extends State<SignupPage>
       body: FadeTransition(
         opacity: _animation,
         child: SlideTransition(
-          position: Tween<Offset>(begin: Offset(0, 0.2), end: Offset.zero)
+          position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
               .animate(_animation),
           child: SafeArea(
             child: Center(
@@ -111,29 +129,6 @@ class _SignupPageState extends State<SignupPage>
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 48),
-                      DropdownButtonFormField<String>(
-                        value: _selectedUserType,
-                        decoration: InputDecoration(
-                          labelText: 'User Type',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'User', child: Text('User')),
-                          DropdownMenuItem(
-                              value: 'Organizer', child: Text('Organizer')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedUserType = value!;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 20),
                       TextFormField(
                         controller: _usernameController,
                         style: const TextStyle(color: Colors.black87),
@@ -146,8 +141,12 @@ class _SignupPageState extends State<SignupPage>
                           filled: true,
                           fillColor: Colors.white,
                         ),
-                        validator: (value) =>
-                            value!.isEmpty ? 'Please enter a username' : null,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a username';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 20),
                       TextFormField(
@@ -162,8 +161,15 @@ class _SignupPageState extends State<SignupPage>
                           filled: true,
                           fillColor: Colors.white,
                         ),
-                        validator: (value) =>
-                            value!.isEmpty ? 'Please enter your email' : null,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your email';
+                          }
+                          if (!value.contains('@')) {
+                            return 'Please enter a valid email';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 20),
                       TextFormField(
@@ -179,46 +185,16 @@ class _SignupPageState extends State<SignupPage>
                           fillColor: Colors.white,
                         ),
                         obscureText: true,
-                        validator: (value) => (value!.length < 6)
-                            ? 'Password must be at least 6 characters'
-                            : null,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
                       ),
-                      if (_selectedUserType == 'Organizer') ...[
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _organizationController,
-                          style: const TextStyle(color: Colors.black87),
-                          decoration: InputDecoration(
-                            labelText: 'Organization Name',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                          validator: (value) => (value!.isEmpty)
-                              ? 'Please enter organization name'
-                              : null,
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _phoneController,
-                          style: const TextStyle(color: Colors.black87),
-                          decoration: InputDecoration(
-                            labelText: 'Phone Number',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                          validator: (value) => (value!.isEmpty)
-                              ? 'Please enter phone number'
-                              : null,
-                        ),
-                      ],
                       const SizedBox(height: 32),
                       ElevatedButton(
                         onPressed: _isLoading ? null : _signUpUser,

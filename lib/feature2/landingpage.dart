@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_xploverse/feature2/trip_detail_page.dart';
-import 'package:flutter_xploverse/feature2/trips_page.dart';
+import 'package:flutter_xploverse/feature2/trips/trip_detail_page.dart';
+
 import 'dart:io';
+
+import 'package:flutter_xploverse/feature2/trips/trips_page.dart';
 
 class LandingPage extends StatefulWidget {
   @override
@@ -62,25 +64,49 @@ class _LandingPageState extends State<LandingPage>
         .get();
 
     List<dynamic> userHashtags = userDoc.data()?['hashtags'] ?? [];
-    if (userHashtags.isEmpty) {
+    Map<String, dynamic> userPresetHashtags =
+        userDoc.data()?['presetHashtags'] ?? {}; // Get the user preset hashtags
+
+    if (userHashtags.isEmpty && userPresetHashtags.isEmpty) {
       return [];
     }
 
-    QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore
-        .instance
-        .collection('trips')
-        .where('hashtags', arrayContainsAny: userHashtags)
-        .get();
+    // Fetch all trips
+    QuerySnapshot<Map<String, dynamic>> snapshot =
+        await FirebaseFirestore.instance.collection('trips').get();
 
-    return snapshot.docs.map((doc) {
+    List<Map<String, dynamic>> recommendedTrips = [];
+
+    for (var doc in snapshot.docs) {
       var tripData = doc.data();
       tripData!['id'] = doc.id;
-      return tripData;
-    }).toList();
+
+      // Check for matching custom hashtags
+      List<dynamic> tripCustomHashtags = tripData['customHashtags'] ?? [];
+      bool hasMatchingCustomHashtags = tripCustomHashtags
+          .any((tripHashtag) => userHashtags.contains(tripHashtag));
+
+      // Check for matching preset hashtags
+      Map<String, dynamic> tripPresetHashtags =
+          tripData['presetHashtags'] ?? {};
+
+      bool hasMatchingPresetHashtags = false; // Initialized to false
+      if (userPresetHashtags.isNotEmpty && tripPresetHashtags.isNotEmpty) {
+        hasMatchingPresetHashtags =
+            _checkIfPresetHashtagsMatch(userPresetHashtags, tripPresetHashtags);
+      }
+
+      // Add to recommendations if EITHER custom OR preset hashtags match
+      if (hasMatchingCustomHashtags || hasMatchingPresetHashtags) {
+        recommendedTrips.add(tripData);
+      }
+    }
+
+    return recommendedTrips;
   }
 
   Widget _buildTripImage(String? imageUrl) {
-    if (imageUrl != null && imageUrl.isNotEmpty && imageUrl.startsWith('/')) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
       try {
         return Image.file(
           File(imageUrl),
@@ -117,6 +143,34 @@ class _LandingPageState extends State<LandingPage>
           child:
               Text('No Image Available', style: TextStyle(color: Colors.grey))),
     );
+  }
+
+  //Helper function to check if preset hastags matches
+  bool _checkIfPresetHashtagsMatch(Map<String, dynamic> userPresetHashtags,
+      Map<String, dynamic> tripPresetHashtags) {
+    // Check if the weather preferences match
+    if (userPresetHashtags['weather'] != null &&
+        tripPresetHashtags['weather'] != null) {
+      if (userPresetHashtags['weather'] != tripPresetHashtags['weather'])
+        return false;
+    }
+
+    // Check if the travel days preferences match
+    if (userPresetHashtags['travelDays'] != null &&
+        tripPresetHashtags['travelDays'] != null) {
+      if (userPresetHashtags['travelDays'] != tripPresetHashtags['travelDays'])
+        return false;
+    }
+
+    // Check if the budget preferences match
+    if (userPresetHashtags['budget'] != null &&
+        tripPresetHashtags['budget'] != null) {
+      if (userPresetHashtags['budget'] != tripPresetHashtags['budget'])
+        return false;
+    }
+
+    // If all specified preferences match, return true
+    return true;
   }
 
   @override
@@ -288,7 +342,7 @@ class _LandingPageState extends State<LandingPage>
                                             ],
                                           ),
                                           Text(
-                                            '\$${tripData['price']}',
+                                            'NPR ${tripData['price']}',
                                             style: TextStyle(
                                               color: Colors.yellow[700],
                                               fontSize: 18,
@@ -317,15 +371,4 @@ class _LandingPageState extends State<LandingPage>
       ),
     );
   }
-}
-
-Widget _buildNoImageAvailable() {
-  return Container(
-    height: 200,
-    width: double.infinity,
-    color: Colors.grey[300],
-    child: const Center(
-        child:
-            Text('No Image Available', style: TextStyle(color: Colors.grey))),
-  );
 }

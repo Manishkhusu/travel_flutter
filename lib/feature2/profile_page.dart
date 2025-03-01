@@ -2,13 +2,16 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_xploverse/feature2/favourite_page.dart';
 import 'package:flutter_xploverse/feature2/presentation/view/login.dart';
 import 'package:flutter_xploverse/feature2/presentation/viewmodel/authentication.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -24,98 +27,132 @@ class _ProfilePageState extends State<ProfilePage> {
   final User? user = FirebaseAuth.instance.currentUser;
   final ImagePicker _imagePicker = ImagePicker();
   String? imageUrl;
+  File? selectedImage;
   bool isLoading = false;
-  bool get isGoogleSignIn =>
-      user?.providerData
-          .any((userInfo) => userInfo.providerId == 'google.com') ??
-      false;
-  int totalBookings = 0;
-  int totalEvents = 0;
-  int createdEvents = 0;
+
   int totalFavorites = 0;
 
-  final _bookingStream = BehaviorSubject<int>();
-  final _createdEventStream = BehaviorSubject<int>();
-  final _bookedEventStream = BehaviorSubject<int>();
   final _favoriteStream = BehaviorSubject<int>();
+
+  // Custom Hashtags Controller
+  final TextEditingController _customHashtagsController =
+      TextEditingController();
+
+  // Preset Hashtag Options (Same as in TripDetailPage)
+  String? _selectedWeather;
+  String? _selectedTravelDays;
+  String? _selectedBudget;
+  String? _localImagePath;
+  bool isOrganizer = false; // Initialize with a default value
+
+  List<String> weatherOptions = ['sunny', 'rainy', 'foggy', 'cloudy'];
+  List<String> travelDaysOptions = ['1-3 days', '4-7 days', '7+ days'];
+  List<String> budgetOptions = ['NPR < 1000', 'NPR 1000-5000', 'NPR > 5000'];
 
   @override
   void initState() {
     super.initState();
     _setupListeners();
+    _loadUserData(); // Load both custom and preset hashtags
+    _loadImagePath();
+  }
+
+  Future<void> _loadImagePath() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _localImagePath = prefs.getString('local_image_path');
+    });
+  }
+
+  Future<void> _saveImagePath(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('local_image_path', path);
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? image =
+        await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      // Save the image locally
+      final File? localImage = await _saveImageLocally(File(image.path));
+
+      if (localImage != null) {
+        setState(() {
+          selectedImage = localImage;
+          _localImagePath = localImage.path; // Store for immediate display
+        });
+        await _saveImagePath(
+            localImage.path); // Persist path for future sessions
+      } else {
+        // Handle error saving image locally
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save image locally'),
+          ),
+        );
+      }
+    }
+  }
+
+  // Function to save the image locally
+  Future<File?> _saveImageLocally(File image) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final imagePath = path.join(directory.path,
+          'profile_${DateTime.now().millisecondsSinceEpoch}.png'); // Unique name
+
+      final File newImage = await image.copy(imagePath);
+      return newImage;
+    } catch (e) {
+      print("Error saving image locally: $e");
+      return null;
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    DocumentSnapshot<Map<String, dynamic>> userDoc = await FirebaseFirestore
+        .instance
+        .collection('users')
+        .doc(user?.uid)
+        .get();
+
+    if (userDoc.exists) {
+      var userData = userDoc.data();
+      setState(() {
+        //Load Custom Hastags
+        _customHashtagsController.text =
+            (userData?['hashtags'] as List<dynamic>?)?.join(' ') ?? '';
+
+        //Load Preference Hastags
+        _selectedWeather =
+            (userData?['presetHashtags'] as Map<String, dynamic>?)?['weather'];
+        _selectedTravelDays = (userData?['presetHashtags']
+            as Map<String, dynamic>?)?['travelDays'];
+        _selectedBudget =
+            (userData?['presetHashtags'] as Map<String, dynamic>?)?['budget'];
+
+        // Determine if the user is an organizer
+        isOrganizer = (userData?['usertype'] == 'Organizer');
+      });
+    }
   }
 
   @override
   void dispose() {
-    _bookingStream.close();
-    _createdEventStream.close();
-    _bookedEventStream.close();
     _favoriteStream.close();
+    _customHashtagsController.dispose(); //Dispose memory
+
     super.dispose();
   }
 
   void _setupListeners() {
-    _bookingStream.listen((value) {
-      setState(() {
-        totalBookings = value;
-      });
-    });
-
-    _createdEventStream.listen((value) {
-      setState(() {
-        createdEvents = value;
-      });
-    });
-
-    _bookedEventStream.listen((value) {
-      setState(() {
-        totalEvents = value;
-      });
-    });
-
     _favoriteStream.listen((value) {
       setState(() {
         totalFavorites = value;
       });
     });
 
-    fetchBookingInfo();
-    fetchCreatedEvents();
     fetchTotalFavorites();
-  }
-
-  Future<void> fetchBookingInfo() async {
-    try {
-      FirebaseFirestore.instance
-          .collection('bookings')
-          .where('userId', isEqualTo: user?.uid)
-          .snapshots()
-          .listen((snapshot) {
-        if (snapshot.docs.length != totalBookings) {
-          _bookingStream.add(snapshot.docs.length);
-          _bookedEventStream
-              .add(snapshot.docs.map((doc) => doc['eventId']).toSet().length);
-        }
-      });
-    } catch (e) {
-      print("Failed to retrieve booking information: $e");
-    }
-  }
-
-  Future<void> fetchCreatedEvents() async {
-    try {
-      FirebaseFirestore.instance
-          .collection('events')
-          .where('organizerId', isEqualTo: user?.uid)
-          .snapshots()
-          .listen((snapshot) {
-        if (snapshot.docs.length != createdEvents) {
-          _createdEventStream.add(snapshot.docs.length);
-        }
-      });
-    } catch (e) {
-      print("Failed to retrieve created events: $e");
-    }
   }
 
   Future<void> fetchTotalFavorites() async {
@@ -135,78 +172,51 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> pickImage() async {
-    if (isGoogleSignIn) return;
+  Future<void> _updateUserData() async {
+    //Save User Data
+    List<String> customHashtags = _customHashtagsController.text.split(' ');
 
-    try {
-      final XFile? pickedFile =
-          await _imagePicker.pickImage(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        await uploadImageToFirebase(File(pickedFile.path));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red,
-          content: Text("Failed to pick image: $e"),
-        ),
-      );
-    }
+    //Save Preferences Data
+    Map<String, dynamic> presetHashtags = {
+      'weather': _selectedWeather,
+      'travelDays': _selectedTravelDays,
+      'budget': _selectedBudget,
+    };
+
+    await allUsers.doc(user?.uid).update({
+      'hashtags': customHashtags,
+      'presetHashtags': presetHashtags,
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Profile updated successfully! 🎉'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
-  Future<void> uploadImageToFirebase(File image) async {
-    setState(() {
-      isLoading = true;
-    });
-    try {
-      Reference reference = FirebaseStorage.instance
-          .ref()
-          .child("images/${DateTime.now().microsecondsSinceEpoch}.png");
-
-      await reference.putFile(image).whenComplete(() async {
-        String downloadUrl = await reference.getDownloadURL();
-        await allUsers
-            .doc(user?.uid)
-            .update({'profilePictureUrl': downloadUrl});
-        setState(() {
-          imageUrl = downloadUrl;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-            content: Text("Upload Successful!"),
-          ),
-        );
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red,
-          content: Text("Failed to upload image: $e"),
-        ),
-      );
+  Object _buildProfileImage() {
+    if (selectedImage != null) {
+      return FileImage(File(selectedImage!.path));
+    } else if (_localImagePath != null) {
+      return FileImage(File(_localImagePath!));
+    } else {
+      return const NetworkImage('https://via.placeholder.com/150');
     }
-    setState(() {
-      isLoading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = Colors.black;
-    final cardColor = Colors.grey[900];
-    final textColor = Colors.white;
-
     return Scaffold(
       backgroundColor: const Color(0xFFE1F5FE),
       appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF29ABE2),
+        title: const Text('Profile', style: TextStyle(color: Colors.black87)),
+        backgroundColor: const Color.fromARGB(255, 45, 165, 251),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
               await _auth.signOut();
               Navigator.pushReplacement(
@@ -240,17 +250,9 @@ class _ProfilePageState extends State<ProfilePage> {
           }
 
           var userData = snapshot.data!.data() as Map<String, dynamic>;
-          String? profilePictureUrl = isGoogleSignIn
-              ? user?.photoURL
-              : (imageUrl ??
-                  userData['profilePictureUrl'] ??
-                  user?.photoURL ??
-                  'https://via.placeholder.com/150');
-          bool isOrganizer = userData['usertype'] == 'Organizer';
 
-          if (isOrganizer) {
-            fetchCreatedEvents();
-          }
+          // Determine if the user is an organizer here as well, in case _loadUserData didn't complete yet.
+          bool currentIsOrganizer = (userData['usertype'] == 'Organizer');
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -262,7 +264,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 60,
-                      backgroundImage: NetworkImage(profilePictureUrl!),
+                      backgroundImage: _buildProfileImage() as ImageProvider,
                     ),
                     if (isLoading)
                       const Positioned.fill(
@@ -272,32 +274,31 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                       ),
-                    if (!isGoogleSignIn)
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: pickImage,
-                          child: const CircleAvatar(
-                            backgroundColor: Colors.blue,
-                            radius: 20,
-                            child: Icon(
-                              Icons.edit,
-                              size: 20,
-                              color: Colors.white,
-                            ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _pickImage,
+                        child: const CircleAvatar(
+                          backgroundColor: Color(0xFF29ABE2),
+                          radius: 20,
+                          child: Icon(
+                            Icons.edit,
+                            size: 20,
+                            color: Colors.white,
                           ),
                         ),
                       ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
                 Text(
                   userData['username'] ?? user?.displayName ?? 'Username',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF29ABE2),
+                    color: Color(0xFF29ABE2),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -318,24 +319,84 @@ class _ProfilePageState extends State<ProfilePage> {
                       _buildInfoText('Bio', userData['bio'] ?? ''),
                       const SizedBox(height: 8),
                       const Text(
-                        'Your Interests:',
+                        'Your Interests(Custom Hastags)',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                           color: Colors.black,
                         ),
                       ),
-                      Wrap(
-                        children: (userData['hashtags'] as List<dynamic>?)
-                                ?.map((hashtag) => Chip(
-                                      label: Text(
-                                        hashtag,
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                      backgroundColor: Colors.blue,
+                      TextField(
+                        controller: _customHashtagsController,
+                        decoration: const InputDecoration(
+                            hintText: 'Enter your interests (space-separated)',
+                            hintStyle: TextStyle(
+                                color: Colors.grey), // Set hint text color
+                            labelStyle: TextStyle(
+                                color: Colors.black), //Set label text color
+                            border: OutlineInputBorder()),
+                        style: const TextStyle(
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Your Preferences',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.black,
+                        ),
+                      ),
+                      Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            decoration: InputDecoration(labelText: 'Weather'),
+                            value: _selectedWeather,
+                            items: weatherOptions
+                                .map((option) => DropdownMenuItem(
+                                      value: option,
+                                      child: Text(option),
                                     ))
-                                .toList() ??
-                            [],
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedWeather = value;
+                              });
+                            },
+                          ),
+                          DropdownButtonFormField<String>(
+                            decoration:
+                                InputDecoration(labelText: 'Travel Days'),
+                            value: _selectedTravelDays,
+                            items: travelDaysOptions
+                                .map((option) => DropdownMenuItem(
+                                      value: option,
+                                      child: Text(option),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedTravelDays = value;
+                              });
+                            },
+                          ),
+                          DropdownButtonFormField<String>(
+                            decoration: InputDecoration(labelText: 'Budget'),
+                            value: _selectedBudget,
+                            items: budgetOptions
+                                .map((option) => DropdownMenuItem(
+                                      value: option,
+                                      child: Text(option),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedBudget = value;
+                              });
+                            },
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       GestureDetector(
@@ -362,7 +423,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 "Total Favorites",
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -377,44 +438,11 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                       ),
-                      if (isOrganizer) ...[
+                      if (currentIsOrganizer) ...[
                         const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.grey,
-                                    width: 1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    const Text(
-                                      "Created Events",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "$createdEvents",
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        color: Colors.yellow,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
                             Expanded(
                               child: Container(
                                 padding: const EdgeInsets.all(10),
@@ -456,12 +484,13 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
-                    _showUpdateProfileDialog(userData);
+                    _updateUserData();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF2D794),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Colors.black,
+                    backgroundColor: const Color(0xFF29ABE2),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 18),
+                    foregroundColor: Colors.white,
                     textStyle: const TextStyle(fontSize: 18),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -469,7 +498,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   child: const Text(
                     'Update Profile',
-                    style: TextStyle(fontSize: 16, color: Colors.black),
+                    style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -484,7 +513,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 17),
                     foregroundColor: Colors.white,
                     textStyle: const TextStyle(fontSize: 18),
                     shape: RoundedRectangleBorder(
@@ -530,47 +560,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildStat(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.black54),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.yellow[700],
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPreference(String label, bool value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.black54),
-          ),
-          Icon(
-            value ? Icons.check_circle : Icons.cancel,
-            color: value ? Colors.green : Colors.red,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildInfoText(String label, String value) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -591,191 +580,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ],
-    );
-  }
-
-  void _showUpdateProfileDialog(Map<String, dynamic> userData) {
-    bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    String newHashtags =
-        (userData['hashtags'] as List<dynamic>?)?.join(' ') ?? '';
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        String newBio = userData['bio'] ?? '';
-        String newPhone = userData['phone'] ?? '';
-
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.90,
-            decoration: BoxDecoration(
-              gradient: isDarkMode
-                  ? const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF212121), Color(0xFF000000)],
-                    )
-                  : const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFE2E2E2),
-                        Colors.white,
-                      ],
-                    ),
-              borderRadius: BorderRadius.circular(16.0),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Update Profile',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode ? Colors.white : Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    onChanged: (value) {
-                      newBio = value;
-                    },
-                    controller: TextEditingController(text: newBio),
-                    decoration: InputDecoration(
-                      hintText: 'Enter your new bio',
-                      hintStyle: TextStyle(
-                        color: isDarkMode ? Colors.white70 : Colors.black54,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                    ),
-                    style: TextStyle(
-                      color: isDarkMode ? Colors.white : Colors.black,
-                    ),
-                    maxLines: 5,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    onChanged: (value) {
-                      newHashtags = value;
-                    },
-                    controller: TextEditingController(text: newHashtags),
-                    decoration: InputDecoration(
-                      hintText: 'Enter your interests (space-separated)',
-                      hintStyle: TextStyle(
-                        color: isDarkMode ? Colors.white70 : Colors.black54,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                    ),
-                    style: TextStyle(
-                      color: isDarkMode ? Colors.white : Colors.black,
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 16),
-                  if (userData['usertype'] == 'Organizer')
-                    TextField(
-                      onChanged: (value) {
-                        newPhone = value;
-                      },
-                      controller: TextEditingController(text: newPhone),
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your phone number',
-                        hintStyle: TextStyle(
-                          color: isDarkMode ? Colors.white70 : Colors.black54,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: isDarkMode ? Colors.white : Colors.black,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: isDarkMode ? Colors.white : Colors.black,
-                          ),
-                        ),
-                      ),
-                      style: TextStyle(
-                        color: isDarkMode ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: Colors.red,
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      TextButton(
-                        child: const Text(
-                          'Update',
-                          style: TextStyle(
-                            color: Colors.blue,
-                          ),
-                        ),
-                        onPressed: () {
-                          allUsers.doc(user?.uid).update({
-                            'bio': newBio,
-                            'hashtags': newHashtags.split(' '),
-                            if (userData['usertype'] == 'Organizer')
-                              'phone': newPhone,
-                          }).then((_) {
-                            Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Profile updated successfully'),
-                              ),
-                            );
-                          }).catchError((error) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content:
-                                    Text('Failed to update profile: $error'),
-                              ),
-                            );
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

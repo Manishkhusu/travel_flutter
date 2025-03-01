@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import Riverpod
-
 import 'package:flutter_xploverse/feature2/languagetranslator/translatorpg.dart';
 import 'package:flutter_xploverse/feature2/splash/splash_screen.dart';
 import 'package:flutter_xploverse/firebase_options.dart';
@@ -41,7 +40,7 @@ class TravelApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.white),
         ),
       ),
-      home: const SplashScreen(), //It could be good practice to make this const
+      home: const SplashScreen(),
     );
   }
 }

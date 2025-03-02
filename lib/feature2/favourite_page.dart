@@ -90,7 +90,10 @@ class FavoritesPage extends StatelessWidget {
                             .instance.currentUser; // Get user again to be sure
                         if (user == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Not logged in!")));
+                              const SnackBar(
+                                  content: Text("Not logged in!"),
+                                  backgroundColor: Colors.green,
+                                  behavior: SnackBarBehavior.floating));
                           return;
                         }
                         try {
@@ -103,7 +106,9 @@ class FavoritesPage extends StatelessWidget {
 
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('Removed from favorites.')),
+                                content: Text('Removed from favorites.'),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating),
                           );
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(

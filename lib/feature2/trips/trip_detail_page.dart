@@ -138,7 +138,10 @@ class _TripDetailPageState extends State<TripDetailPage> {
             .set(tripSnapshot.data() as Map<String, dynamic>);
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Added to favorites!')),
+          const SnackBar(
+              content: Text('Added to favorites!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating),
         );
         Navigator.push(
           context,
@@ -153,7 +156,10 @@ class _TripDetailPageState extends State<TripDetailPage> {
             .delete();
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from favorites!')),
+          const SnackBar(
+              content: Text('Removed from favorites!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating),
         );
       }
     } catch (e) {

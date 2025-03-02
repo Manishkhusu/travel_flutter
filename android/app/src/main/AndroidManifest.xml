@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="33"/>
     <application
-        android:label="flutter_xploverse"
+        android:label="flutter_travel"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
 

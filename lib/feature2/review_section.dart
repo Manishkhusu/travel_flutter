@@ -178,7 +178,10 @@ class _ReviewSectionState extends State<ReviewSection> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review deleted successfully!')),
+        const SnackBar(
+            content: Text('Review deleted successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating),
       );
     } catch (e) {
       print("Error deleting review: $e");

@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#FFFFFF</color>
-
-    <!-- Duplicate definitions - REMOVE THESE -->
-    <style name="LaunchTheme" parent="Theme.AppCompat.Light.NoActionBar">
-    </style>
-
-    <style name="NormalTheme" parent="Theme.AppCompat.Light.NoActionBar">
-    </style>
-    <!-- End Duplicate definitions -->
 </resources>

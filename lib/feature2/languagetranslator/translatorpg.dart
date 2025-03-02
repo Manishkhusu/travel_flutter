@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:translator/translator.dart';
+import 'package:flutter_tts/flutter_tts.dart'; // Import flutter_tts
 
 class Translatorpg extends StatefulWidget {
   const Translatorpg({Key? key}) : super(key: key);
@@ -11,10 +12,46 @@ class Translatorpg extends StatefulWidget {
 class _TranslatorpgState extends State<Translatorpg> {
   final outputcontroller = TextEditingController(text: "result here.........");
   final translator = GoogleTranslator();
+  final FlutterTts flutterTts = FlutterTts(); // Initialize FlutterTts
 
   String inputtext = '';
   String inputlanguage = "en";
   String outputlanguage = "fr";
+
+  // Map for language codes to full names
+  final Map<String, String> languageNames = {
+    'en': 'English',
+    'fr': 'French',
+    'es': 'Spanish',
+    'de': 'German',
+    'ur': 'Urdu',
+    'hi': 'Hindi',
+    'ne': 'Nepali',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts(); // Initialize TTS settings
+  }
+
+  Future<void> _initTts() async {
+    await flutterTts.setLanguage(outputlanguage); // Set initial language
+    await flutterTts.setPitch(1.0); // Set pitch. Can be changed during runtime
+    await flutterTts
+        .setSpeechRate(0.5); // Set speed. Can be changed during runtime
+  }
+
+  Future<void> _speak(String text) async {
+    try {
+      await flutterTts.speak(text);
+    } catch (e) {
+      print("TTS Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('TTS error: ${e.toString()}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +74,13 @@ class _TranslatorpgState extends State<Translatorpg> {
             children: [
               TextField(
                 maxLines: 5,
+                style: const TextStyle(
+                    color: Colors.black), // Add black color for input text
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   hintText: "Enter text to translate",
+                  fillColor: Colors.white,
+                  filled: true,
                 ),
                 onChanged: (Value) {
                   setState(() {
@@ -60,17 +101,11 @@ class _TranslatorpgState extends State<Translatorpg> {
                         inputlanguage = newValue!;
                       });
                     },
-                    items: const <String>[
-                      'en',
-                      'fr',
-                      'es',
-                      'de',
-                      'ur',
-                      'hi',
-                    ].map<DropdownMenuItem<String>>((String value) {
+                    items: languageNames.entries
+                        .map<DropdownMenuItem<String>>((entry) {
                       return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
+                        value: entry.key,
+                        child: Text(entry.value),
                       );
                     }).toList(),
                   ),
@@ -78,21 +113,17 @@ class _TranslatorpgState extends State<Translatorpg> {
                   DropdownButton<String>(
                     value: outputlanguage,
                     onChanged: (newValue) {
-                      setState(() {
+                      setState(() async {
                         outputlanguage = newValue!;
+                        await flutterTts.setLanguage(
+                            outputlanguage); // Set TTS language on change
                       });
                     },
-                    items: const <String>[
-                      'en',
-                      'fr',
-                      'es',
-                      'de',
-                      'ur',
-                      'hi',
-                    ].map<DropdownMenuItem<String>>((String value) {
+                    items: languageNames.entries
+                        .map<DropdownMenuItem<String>>((entry) {
                       return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
+                        value: entry.key,
+                        child: Text(entry.value),
                       );
                     }).toList(),
                   ),
@@ -112,8 +143,12 @@ class _TranslatorpgState extends State<Translatorpg> {
               TextField(
                 controller: outputcontroller,
                 maxLines: 5,
+                style: const TextStyle(
+                    color: Colors.black), // Set text color to black
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
+                  fillColor: Colors.white,
+                  filled: true,
                 ),
                 onChanged: (Value) {
                   setState(() {
@@ -121,6 +156,7 @@ class _TranslatorpgState extends State<Translatorpg> {
                   });
                 },
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -138,6 +174,7 @@ class _TranslatorpgState extends State<Translatorpg> {
       setState(() {
         outputcontroller.text = translated.text;
       });
+      _speak(outputcontroller.text); // Speak immediately after translation
     } catch (e) {
       print("Translation Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(

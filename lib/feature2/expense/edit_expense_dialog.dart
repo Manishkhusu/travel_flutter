@@ -146,10 +146,13 @@ class _EditExpenseDialogState extends ConsumerState<EditExpenseDialog> {
               children: [
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                      color: Colors.black), // Change text color to black
+                  decoration: InputDecoration(
                     labelText: 'Expense Name',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.description),
+                    prefixIcon: Icon(Icons.description,
+                        color: Colors.black54), // Icon color
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -161,10 +164,26 @@ class _EditExpenseDialogState extends ConsumerState<EditExpenseDialog> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _amountController,
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: Colors.black),
+                  decoration: InputDecoration(
                     labelText: 'Amount',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.attach_money),
+                    prefixIcon: Padding(
+                      // Added Padding
+                      padding: const EdgeInsets.only(
+                          left: 8.0), // Adjust the left padding value here
+                      child: IntrinsicWidth(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('NPR ',
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.black54)),
+                            SizedBox(width: 4), //Add a little space
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
                   validator: (value) {
@@ -182,6 +201,7 @@ class _EditExpenseDialogState extends ConsumerState<EditExpenseDialog> {
                 ),
                 const SizedBox(height: 16),
                 Card(
+                  color: Colors.white,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -192,6 +212,7 @@ class _EditExpenseDialogState extends ConsumerState<EditExpenseDialog> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -204,11 +225,15 @@ class _EditExpenseDialogState extends ConsumerState<EditExpenseDialog> {
                                   decoration: const InputDecoration(
                                     labelText: 'Date',
                                     border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.calendar_today),
+                                    prefixIcon: Icon(Icons.calendar_today,
+                                        color: Colors.black54),
                                   ),
                                   child: Text(
                                     DateFormat('MMM dd, yyyy')
                                         .format(_selectedDate),
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -221,10 +246,14 @@ class _EditExpenseDialogState extends ConsumerState<EditExpenseDialog> {
                                   decoration: const InputDecoration(
                                     labelText: 'Time',
                                     border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.access_time),
+                                    prefixIcon: Icon(Icons.access_time,
+                                        color: Colors.black54),
                                   ),
                                   child: Text(
                                     _selectedTime.format(context),
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                    ),
                                   ),
                                 ),
                               ),

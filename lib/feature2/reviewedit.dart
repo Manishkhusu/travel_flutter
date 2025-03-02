@@ -74,7 +74,10 @@ class _EditReviewDialogState extends State<EditReviewDialog> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review updated successfully!')),
+        const SnackBar(
+            content: Text('Review updated successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating),
       );
 
       Navigator.of(context).pop(); // Close the dialog

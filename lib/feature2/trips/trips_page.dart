@@ -241,6 +241,24 @@ class _TripsPageState extends State<TripsPage> {
     }
   }
 
+  // Helper function to fetch rating for a given tripId
+  Future<double> _getTripRating(String tripId) async {
+    try {
+      DocumentSnapshot tripSnapshot = await FirebaseFirestore.instance
+          .collection('trips')
+          .doc(tripId)
+          .get();
+      if (tripSnapshot.exists) {
+        return (tripSnapshot['rating'] as num?)?.toDouble() ?? 0.0;
+      } else {
+        return 0.0; // Default rating if the document doesn't exist
+      }
+    } catch (e) {
+      print("Error fetching rating: $e");
+      return 0.0; // Return a default value in case of an error
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color textColor = Colors.black87;
@@ -340,107 +358,119 @@ class _TripsPageState extends State<TripsPage> {
               bool isThisTripOrganizer =
                   (isOrganizer == true && trip.organizerId == currentUser?.uid);
 
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TripDetailPage(
-                        trip: tripDocument.data() as Map<String, dynamic>,
-                        tripId: tripDocument.id,
+              return FutureBuilder<double>(
+                future: _getTripRating(trip.id),
+                builder: (context, snapshot) {
+                  double rating = snapshot.data ??
+                      0.0; // Default to 0.0 if data is null or not available
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TripDetailPage(
+                            trip: tripDocument.data() as Map<String, dynamic>,
+                            tripId: tripDocument.id,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Card(
+                      margin: EdgeInsets.all(10),
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      color: Colors.white,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _buildTripImage(trip.image),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  trip.title,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.star,
+                                            color: Colors.yellow[700],
+                                            size: 20),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          rating.toStringAsFixed(1),
+                                          style: TextStyle(color: textColor),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      'NPR ${trip.price}',
+                                      style: TextStyle(
+                                        color: Colors.yellow[700],
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  trip.duration,
+                                  style: TextStyle(color: Colors.black54),
+                                ),
+                                SizedBox(height: 8),
+
+                                // Conditional Buttons for Organizers
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    if (isThisTripOrganizer)
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            _showEditTripDialog(trip),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: Text('Edit'),
+                                      ),
+                                    if (isThisTripOrganizer)
+                                      ElevatedButton(
+                                        onPressed: () => _removeTrip(trip.id),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: Text('Remove'),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
                 },
-                child: Card(
-                  margin: EdgeInsets.all(10),
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  color: Colors.white,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: _buildTripImage(trip.image),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              trip.title,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.star,
-                                        color: Colors.yellow[700], size: 20),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      trip.rating.toStringAsFixed(1),
-                                      style: TextStyle(color: textColor),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  'NPR ${trip.price}',
-                                  style: TextStyle(
-                                    color: Colors.yellow[700],
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              trip.duration,
-                              style: TextStyle(color: Colors.black54),
-                            ),
-                            SizedBox(height: 8),
-
-                            // Conditional Buttons for Organizers
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (isThisTripOrganizer)
-                                  ElevatedButton(
-                                    onPressed: () => _showEditTripDialog(trip),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: Text('Edit'),
-                                  ),
-                                if (isThisTripOrganizer)
-                                  ElevatedButton(
-                                    onPressed: () => _removeTrip(trip.id),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: Text('Remove'),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               );
             },
           );

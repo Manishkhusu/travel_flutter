@@ -142,11 +142,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             children: [
               TextFormField(
                 controller: _nameController,
+                style: TextStyle(
+                    color: Colors.black), // Change text color to black
                 decoration: InputDecoration(
                   labelText: 'Expense Name',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.description,
-                      color: Colors.black54), // Text color from LandingPage
+                      color: Colors.black54), // Icon color
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -158,11 +160,26 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               SizedBox(height: 16),
               TextFormField(
                 controller: _amountController,
+                style: TextStyle(color: Colors.black),
                 decoration: InputDecoration(
                   labelText: 'Amount',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.attach_money,
-                      color: Colors.black54), // Text color from LandingPage
+                  prefixIcon: Padding(
+                    // Added Padding
+                    padding: const EdgeInsets.only(
+                        left: 8.0), // Adjust the left padding value here
+                    child: IntrinsicWidth(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('NPR ',
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.black54)),
+                          SizedBox(width: 4), //Add a little space
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {

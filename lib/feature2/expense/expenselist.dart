@@ -150,7 +150,11 @@ class ExpenseListScreen extends ConsumerWidget {
                                                         title: const Text(
                                                             'Delete Expense'),
                                                         content: const Text(
-                                                            'Are you sure you want to delete this expense?'),
+                                                          'Are you sure you want to delete this expense?',
+                                                          style: TextStyle(
+                                                              color: Colors
+                                                                  .black), // Set text color to black
+                                                        ),
                                                         actions: [
                                                           TextButton(
                                                             onPressed: () =>
@@ -183,7 +187,11 @@ class ExpenseListScreen extends ConsumerWidget {
                                                     .showSnackBar(
                                                   const SnackBar(
                                                       content: Text(
-                                                          'Expense deleted')),
+                                                          'Expense deleted'),
+                                                      backgroundColor:
+                                                          Colors.green,
+                                                      behavior: SnackBarBehavior
+                                                          .floating),
                                                 );
                                               } catch (e) {
                                                 print(
@@ -192,7 +200,11 @@ class ExpenseListScreen extends ConsumerWidget {
                                                     .showSnackBar(
                                                   const SnackBar(
                                                       content: Text(
-                                                          'Failed to delete expense')),
+                                                          'Failed to delete expense'),
+                                                      backgroundColor:
+                                                          Colors.green,
+                                                      behavior: SnackBarBehavior
+                                                          .floating),
                                                 );
                                               }
                                             }
